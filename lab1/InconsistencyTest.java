@@ -2,27 +2,20 @@ package io.github.parallel;
 
 import io.github.parallel.collectors.MetricsCollector;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static io.github.parallel.ZipfDistribution.zipf;
+public class InconsistencyTest {
+    private static final int NUM_THREADS = 4;
 
-public class Benchmark {
-    public Benchmark() {
-
-    }
-
-    private double run (MetricsCollector collector, int T, int seconds, int[] values) throws InterruptedException {
+    public static void run (MetricsCollector collector, int[] values) throws InterruptedException {
         var start = new CountDownLatch(1);
         var stop = new AtomicBoolean(false);
-        var ops = new long[T];
-        var threads = new Thread[T];
+        var ops = new long[NUM_THREADS];
+        var threads = new Thread[NUM_THREADS];
 
-        for (int k = 0; k < T; k++) {
+        for (int k = 0; k < NUM_THREADS; k++) {
 
             final var threadIdx = k;
             threads[k] = new Thread(() -> {
@@ -50,36 +43,30 @@ public class Benchmark {
             threads[k].start();
         }
 
-        var t0 = System.nanoTime();
         start.countDown();
+        var le = 0;
+        var ge = 0;
 
-        Thread.sleep(seconds * 1000L);
+        for (int i = 0; i < 10_000; i++) {
+            var snapshot = collector.snapshot();
+            var sum = Arrays.stream(snapshot.buckets()).sum();
+            var count = snapshot.count();
+            if (sum < count) {
+                le++;
+            } else if (sum > count) {
+                ge++;
+            }
+        }
+
         stop.set(true);
 
-        var t1 = System.nanoTime();
 
         for (var thread :  threads) {
             thread.join();
         }
 
         var totalOps = Arrays.stream(ops).sum();
+        System.out.printf("le %d\nge %d\ntotalOps %d\ncount %d%n\n", le, ge, totalOps, collector.snapshot().count());
 
-        var sec = (t1 - t0) / 1_000_000_000D;
-
-        return totalOps / sec;
     }
-
-    public double measurePoint(MetricsCollector collector, int T, int[] values) throws InterruptedException {
-        run(collector, T, 5, values);
-
-        var results = new ArrayList<Double>();
-        for (int i = 0; i < 5; i++) {
-            results.add(run(collector, T, 5, values));
-        }
-        System.out.println(collector.snapshot().count());
-        Collections.sort(results);
-        var n = results.size();
-        return ((results.get(n / 2) + results.get((n - 1) / 2))  / 2);
-    }
-
 }

@@ -4,6 +4,8 @@ import io.github.parallel.Snapshot;
 
 import java.util.Arrays;
 
+import static io.github.parallel.collectors.CollectorUtils.calculatePercentile;
+
 public class SingleThreadedCollector implements  MetricsCollector {
     private final long[] buckets;
     private long count;
@@ -15,18 +17,6 @@ public class SingleThreadedCollector implements  MetricsCollector {
 
     public SingleThreadedCollector() {
         buckets = new long[256];
-    }
-
-    private int calculatePercentile(double p) {
-        var boundary = count * p;
-        var sum = 0L;
-        int i;
-        for (i = 0; i < buckets.length; i++) {
-            sum += buckets[i];
-            if (sum >= boundary) break;
-        }
-
-        return i * 4;
     }
 
     @Override
@@ -47,8 +37,8 @@ public class SingleThreadedCollector implements  MetricsCollector {
                 sum,
                 min,
                 max,
-                calculatePercentile(0.5),
-                calculatePercentile(0.99)
+                calculatePercentile(0.5, count, buckets),
+                calculatePercentile(0.99, count, buckets)
         );
     }
 }
